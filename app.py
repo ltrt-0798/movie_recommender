@@ -117,11 +117,13 @@ if st.button("🎯 Recommend"):
         st.subheader("Top Recommendations")
 
         cols = st.columns(10)
-
+        rows = st.rows(2)
+        rw = 1
         for i in range(len(names)):
-            with cols[i]:
+            with rows[rw]cols[i]:
                 st.image(posters[i])
                 st.markdown(f"**{names[i]}**")
+                rw += 1
     else:
         st.error("Movie not found!")
   
