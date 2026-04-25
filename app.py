@@ -88,7 +88,7 @@ def recommend(movie_name):
     movie_index = df[df['title'] == movie_name].index[0]
     similar_movies = list(enumerate(similarity[movie_index]))
 
-    sorted_movies = sorted(similar_movies, key=lambda x: x[1], reverse=True)[1:6]
+    sorted_movies = sorted(similar_movies, key=lambda x: x[1], reverse=True)[1:11]
 
     names = []
     posters = []
@@ -116,7 +116,7 @@ if st.button("🎯 Recommend"):
     if names:
         st.subheader("Top Recommendations")
 
-        cols = st.columns(5)
+        cols = st.columns(10)
 
         for i in range(len(names)):
             with cols[i]:
