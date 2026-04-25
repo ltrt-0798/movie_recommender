@@ -120,7 +120,7 @@ if st.button("🎯 Recommend"):
         rows = st.rows(2)
         rw = 1
         for i in range(len(names)):
-            with rows[rw]cols[i]:
+            with rows[rw],cols[i]:
                 st.image(posters[i])
                 st.markdown(f"**{names[i]}**")
                 rw += 1
