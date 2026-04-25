@@ -1,68 +1,128 @@
 import streamlit as st
 import pandas as pd
+import requests
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+st.set_page_config(page_title="Movie Recommender", layout="wide")
+
+st.title("🎬 Movie Recommendation System")
+
 # ---------------------------
-# Load and prepare data
+# LOAD DATA (SAFE + CACHED)
 # ---------------------------
 @st.cache_data
 def load_data():
-    url = "https://raw.githubusercontent.com/rashida048/Datasets/master/movie_dataset.csv"
-    df = pd.read_csv(url)
+    try:
+        df = pd.read_csv("movie_dataset.csv")
+        return df
+    except Exception as e:
+        st.error(f"Error loading dataset: {e}")
+        return None
 
-    features = ['keywords', 'cast', 'genres', 'director']
+df = load_data()
+
+if df is None:
+    st.stop()
+
+st.success("Data loaded successfully ✅")
+
+# ---------------------------
+# BUILD MODEL (CACHED)
+# ---------------------------
+@st.cache_resource
+def create_model(df):
+    df = df.copy()
+
+    features = ['keywords','cast','genres','director']
     for feature in features:
-        df[feature] = df[feature].fillna('')
+        if feature in df.columns:
+            df[feature] = df[feature].fillna('')
+        else:
+            st.error(f"Missing column: {feature}")
+            st.stop()
 
     df["combined_features"] = df.apply(
         lambda row: row['keywords'] + " " + row['cast'] + " " + row['genres'] + " " + row['director'],
         axis=1
     )
 
-    return df
+    df["combined_features"] = df["combined_features"].str.lower()
 
-@st.cache_resource
-def create_similarity(df):
     vectorizer = TfidfVectorizer()
     feature_matrix = vectorizer.fit_transform(df["combined_features"])
-    return cosine_similarity(feature_matrix)
+    similarity = cosine_similarity(feature_matrix)
 
-df = load_data()
-cosine_sim = create_similarity(df)
+    return similarity
 
-# ---------------------------
-# Recommendation function
-# ---------------------------
-def recommend_movies(title):
-    if title not in df['title'].values:
-        return []
+similarity = create_model(df)
 
-    idx = df[df.title == title].index[0]
-    similarity_scores = list(enumerate(cosine_sim[idx]))
-    sorted_movies = sorted(similarity_scores, key=lambda x: x[1], reverse=True)
-
-    return [df.iloc[i[0]].title for i in sorted_movies[1:11]]
+st.success("Model ready ✅")
 
 # ---------------------------
-# UI Design
+# POSTER FUNCTION (SAFE)
 # ---------------------------
-st.set_page_config(page_title="Movie Recommender", layout="centered")
+API_KEY = "2dbd05c4e48926f61a8482f6afb3e6d3"  
 
-st.title("🎬 Movie Recommender System")
-st.write("Get similar movie suggestions instantly!")
+def fetch_poster(movie_name):
+    try:
+        url = f"https://api.themoviedb.org/3/search/movie?api_key={API_KEY}&query={movie_name}"
+        data = requests.get(url).json()
 
-# Dropdown instead of typing (better UX)
-movie_list = df['title'].sort_values().unique()
-selected_movie = st.selectbox("Choose a movie:", movie_list)
+        if "results" in data and len(data["results"]) > 0:
+            poster_path = data["results"][0].get("poster_path")
+            if poster_path:
+                return "https://image.tmdb.org/t/p/w500/" + poster_path
+    except:
+        pass
 
-# Button
-if st.button("Recommend"):
-    recommendations = recommend_movies(selected_movie)
+    return "https://via.placeholder.com/150?text=No+Image"
 
-    if recommendations:
-        st.subheader("Recommended Movies:")
-        for i, movie in enumerate(recommendations, 1):
-            st.write(f"{i}. {movie}")
+# ---------------------------
+# RECOMMEND FUNCTION
+# ---------------------------
+def recommend(movie_name):
+    if movie_name not in df['title'].values:
+        return [], []
+
+    movie_index = df[df['title'] == movie_name].index[0]
+    similar_movies = list(enumerate(similarity[movie_index]))
+
+    sorted_movies = sorted(similar_movies, key=lambda x: x[1], reverse=True)[1:6]
+
+    names = []
+    posters = []
+
+    for i in sorted_movies:
+        title = df.iloc[i[0]].title
+        names.append(title)
+        posters.append(fetch_poster(title))
+
+    return names, posters
+
+# ---------------------------
+# UI
+# ---------------------------
+movie_list = sorted(df['title'].values)
+
+selected_movie = st.selectbox("🔍 Search or select a movie:", movie_list)
+
+if st.button("🎯 Recommend"):
+    st.write(f"### Showing results for: **{selected_movie}**")
+
+    with st.spinner("Finding best movies..."):
+        names, posters = recommend(selected_movie)
+
+    if names:
+        st.subheader("Top Recommendations")
+
+        cols = st.columns(5)
+
+        for i in range(len(names)):
+            with cols[i]:
+                st.image(posters[i])
+                st.markdown(f"**{names[i]}**")
     else:
         st.error("Movie not found!")
+  
+
